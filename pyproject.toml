@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mappo"
+version = "0.3.0"
+description = "Mappo — Inventory and map local Coding Agent workspaces on macOS."
+readme = "README.md"
+requires-python = ">=3.9"
+
+[project.scripts]
+mappo = "mappo.cli:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+src = ["src", "tests"]
+target-version = "py39"

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Mappo</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/icons/mappo.svg">
+  <!--MAPPO_TOKEN-->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("mappo-theme") || localStorage.getItem("awh-theme") || "auto";
+        var dark = saved === "dark" || (saved === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.themeMode = saved;
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div id="top-progress" class="top-progress" aria-hidden="true">
+    <div class="top-progress-bar"></div>
+  </div>
+
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="20" height="20" fill="none">
+            <path d="M10 19.5C10 17.4 11.4 15.7 13.4 15.1L24 12V48.5L13.4 51.6C11.4 52.2 10 50.6 10 48.5V19.5Z" fill="#FFFFFF" fill-opacity="0.96"/>
+            <path d="M26.5 12L37.5 15.8V52.3L26.5 48.5V12Z" fill="#FFFFFF" fill-opacity="0.54"/>
+            <path d="M40 15.8L50.6 12.7C52.6 12.1 54 13.7 54 15.8V44.8C54 46.9 52.6 48.6 50.6 49.2L40 52.3V15.8Z" fill="#FFFFFF" fill-opacity="0.88"/>
+            <circle cx="46.5" cy="24" r="5.8" fill="#FDE047"/>
+            <circle cx="46.5" cy="24" r="2.3" fill="#0047B3"/>
+          </svg>
+        </span>
+        <span class="brand-name">Mappo</span>
+        <span id="scope-pill" class="scope-pill" hidden></span>
+      </div>
+
+      <nav class="segmented main-segmented" role="tablist" aria-label="主视图切换" id="view-segmented">
+        <div class="segmented-thumb" aria-hidden="true"></div>
+        <button type="button" class="segmented-btn is-active" role="tab" aria-selected="true" data-view="projects">
+          项目
+        </button>
+        <button type="button" class="segmented-btn" role="tab" aria-selected="false" data-view="agents">
+          Agent
+        </button>
+        <button type="button" class="segmented-btn" role="tab" aria-selected="false" data-view="organize" id="tab-btn-organize">
+          <span>整理</span>
+          <span class="tab-scan-dot" id="organize-tab-dot" aria-hidden="true"></span>
+        </button>
+      </nav>
+
+      <div class="topbar-actions">
+        <div class="sync-cluster">
+          <span class="sync-status" id="sync-status" title="">
+            <span class="sync-dot" id="sync-dot" aria-hidden="true"></span>
+            <span id="sync-label">正在加载</span>
+          </span>
+          <button type="button" class="icon-btn" id="btn-refresh" aria-label="重新扫描" title="重新扫描 (R)">
+            <svg class="icon-refresh" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/>
+              <path d="M16.5 3.7v3.6h-3.6"/>
+            </svg>
+          </button>
+        </div>
+
+        <button type="button" class="icon-btn diag-btn" id="btn-diagnostics" aria-label="查看扫描诊断" title="扫描诊断">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="10" cy="10" r="7.25"/>
+            <path d="M10 6.8v3.6"/>
+            <circle cx="10" cy="13.4" r="0.65" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="diag-dot" id="diag-dot" hidden></span>
+        </button>
+
+        <button type="button" class="icon-btn" id="btn-theme" aria-label="切换外观主题" title="外观主题">
+          <span class="theme-icon-slot" id="theme-icon"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-shell" id="app-shell">
+    <main class="workspace-main" id="workspace-main">
+      <!-- Projects View -->
+      <section id="view-projects" class="view-pane is-active" aria-label="项目列表">
+        <div class="toolbar-sticky" id="projects-toolbar">
+          <div class="toolbar-row">
+            <div class="search-field" id="search-field">
+              <svg class="search-icon" viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                <circle cx="8.8" cy="8.8" r="5.6"/>
+                <path d="m13.2 13.2 3.6 3.6"/>
+              </svg>
+              <input
+                type="search"
+                id="search-input"
+                class="search-input"
+                placeholder="搜索项目名、路径、Agent、扩展或标签"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="搜索项目"
+              >
+              <kbd class="search-kbd" id="search-kbd" aria-hidden="true">/</kbd>
+              <button type="button" class="search-clear" id="search-clear" aria-label="清空搜索" hidden>
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+                  <path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="filter-controls">
+              <div class="pill-group" role="group" aria-label="项目范围" id="scope-filters">
+                <button type="button" class="filter-pill is-active" data-scope="local">
+                  <span>本地项目</span>
+                  <span class="pill-count" id="count-local">0</span>
+                </button>
+                <button type="button" class="filter-pill" data-scope="favorite">
+                  <span>收藏</span>
+                  <span class="pill-count" id="count-favorite">0</span>
+                </button>
+                <button type="button" class="filter-pill" data-scope="remote">
+                  <span>远程</span>
+                  <span class="pill-count" id="count-remote">0</span>
+                </button>
+                <button type="button" class="filter-pill" data-scope="attention" id="btn-attention-scope">
+                  <span>待整理</span>
+                  <span class="pill-count" id="count-attention">0</span>
+                </button>
+              </div>
+
+              <div class="select-group">
+                <label class="select-wrap" id="git-filter-wrap" aria-label="按仓库类型筛选">
+                  <select id="git-filter" class="compact-select">
+                    <option value="">全部类型</option>
+                    <option value="git">Git 仓库</option>
+                    <option value="local-only">纯本地目录</option>
+                    <option value="duplicates">多副本仓库</option>
+                  </select>
+                </label>
+                <label class="select-wrap" aria-label="按时间筛选">
+                  <select id="time-filter" class="compact-select">
+                    <option value="">全部时间</option>
+                    <option value="24h">24 小时内</option>
+                    <option value="7d">7 天内</option>
+                    <option value="30d">30 天内</option>
+                    <option value="dormant30">30 天以上未动</option>
+                  </select>
+                </label>
+                <label class="select-wrap" aria-label="排序方式">
+                  <select id="sort-select" class="compact-select">
+                    <option value="recent">最近活动</option>
+                    <option value="name">项目名称</option>
+                    <option value="agents">Agent 数量</option>
+                    <option value="reclaimable">可回收空间</option>
+                  </select>
+                </label>
+              </div>
+
+              <button type="button" class="text-pill hidden-toggle" id="btn-hidden-view" hidden>
+                <span>已隐藏</span>
+                <span class="pill-count" id="count-hidden">0</span>
+              </button>
+
+              <div class="view-mode-toggle" role="group" aria-label="视图切换" id="view-mode-toggle">
+                <button type="button" class="view-mode-btn" data-layout="card" aria-label="卡片视图" title="卡片视图" aria-pressed="true">
+                  <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2.5" y="2.5" width="5.2" height="5.2" rx="1.2"/>
+                    <rect x="10.3" y="2.5" width="5.2" height="5.2" rx="1.2"/>
+                    <rect x="2.5" y="10.3" width="5.2" height="5.2" rx="1.2"/>
+                    <rect x="10.3" y="10.3" width="5.2" height="5.2" rx="1.2"/>
+                  </svg>
+                </button>
+                <button type="button" class="view-mode-btn" data-layout="list" aria-label="列表视图" title="列表视图" aria-pressed="false">
+                  <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                    <path d="M3 4.5h12M3 9h12M3 13.5h12"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="active-chips-collapse" id="chips-collapse">
+            <div class="active-chips-inner">
+              <div class="active-chips-bar" id="active-chips-bar"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scope-context-bar" id="scope-context-bar" hidden>
+          <span class="scope-context-text" id="scope-context-text"></span>
+          <div class="scope-context-right">
+            <span class="scope-context-meta" id="scope-context-meta"></span>
+            <button type="button" class="scope-reset-btn" id="btn-scope-reset" hidden>重置筛选</button>
+          </div>
+        </div>
+
+        <div class="list-container" id="projects-container" aria-live="polite">
+          <!-- Skeleton or Project List -->
+        </div>
+      </section>
+
+      <!-- Agents View -->
+      <section id="view-agents" class="view-pane" aria-label="Agent 与编辑器扩展列表" hidden>
+        <div class="agents-header">
+          <div>
+            <h1 class="section-title">本机探测到的 Agent 与编辑器扩展</h1>
+            <p class="section-subtitle" id="agents-summary">按各工具的发现记录整理，点击任意活跃工具查看关联项目</p>
+          </div>
+        </div>
+        <div class="agents-group" id="agents-primary-section" hidden>
+          <div class="agents-group-header">
+            <h2 class="agents-group-title">Agent</h2>
+            <span class="agents-group-meta" id="agents-primary-meta"></span>
+          </div>
+          <div class="agents-grid" id="agents-primary-grid"></div>
+        </div>
+        <div class="agents-group" id="agents-extensions-section" hidden>
+          <div class="agents-group-header">
+            <h2 class="agents-group-title">编辑器扩展</h2>
+            <span class="agents-group-meta" id="agents-extensions-meta"></span>
+          </div>
+          <div class="agents-grid" id="agents-extensions-grid"></div>
+        </div>
+        <div class="agents-empty" id="agents-empty" hidden></div>
+        <div class="inactive-agents-card" id="agents-inactive-card" hidden>
+          <button type="button" class="disclosure-trigger" id="btn-inactive-agents" aria-expanded="false">
+            <span class="disclosure-left">
+              <svg class="disclosure-chevron" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m6 3.5 4.5 4.5L6 12.5"/>
+              </svg>
+              <span id="inactive-agents-title">暂无发现记录的工具</span>
+            </span>
+            <span class="disclosure-meta" id="inactive-agents-meta"></span>
+          </button>
+          <div class="disclosure-panel" id="inactive-agents-panel">
+            <div class="disclosure-panel-inner">
+              <div class="inactive-agents-list" id="agents-inactive-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Organize / Hygiene View -->
+      <section id="view-organize" class="view-pane" aria-label="空间整理与多副本管理" hidden>
+        <div id="organize-root"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Detail Drawer Backdrop (narrow/mobile) -->
+  <div class="scrim" id="drawer-scrim" aria-hidden="true"></div>
+
+  <!-- Persistent Detail Drawer -->
+  <aside class="detail-drawer" id="detail-drawer" role="dialog" aria-modal="false" aria-label="项目详情" aria-hidden="true" inert>
+    <div class="drawer-handle" aria-hidden="true"><span></span></div>
+    <div class="drawer-content" id="drawer-content"></div>
+  </aside>
+
+  <!-- Anchored Tag Popover -->
+  <div class="tag-popover" id="tag-popover" role="dialog" aria-label="管理项目标签" hidden></div>
+
+  <!-- Diagnostics Modal -->
+  <div class="scrim modal-scrim" id="diag-scrim" aria-hidden="true"></div>
+  <section class="modal-dialog" id="diag-modal" role="dialog" aria-modal="true" aria-labelledby="diag-modal-title" aria-hidden="true" inert>
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title" id="diag-modal-title">本机扫描诊断</h2>
+        <p class="modal-subtitle" id="diag-modal-subtitle"></p>
+      </div>
+      <button type="button" class="icon-btn" id="btn-close-diag" aria-label="关闭诊断窗口">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <path d="m4 4 8 8M12 4l-8 8"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-filter-bar" id="diag-filter-bar" hidden></div>
+    <div class="modal-body" id="diag-modal-body"></div>
+  </section>
+
+  <!-- Safe Trash Confirmation Modal -->
+  <div class="scrim modal-scrim" id="trash-scrim" aria-hidden="true"></div>
+  <section class="modal-dialog trash-modal" id="trash-modal" role="dialog" aria-modal="true" aria-labelledby="trash-modal-title" aria-hidden="true" inert>
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title" id="trash-modal-title">移入废纸篓确认</h2>
+        <p class="modal-subtitle" id="trash-modal-subtitle"></p>
+      </div>
+      <button type="button" class="icon-btn" id="btn-close-trash" aria-label="关闭确认窗口">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <path d="m4 4 8 8M12 4l-8 8"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body" id="trash-modal-body"></div>
+    <div class="modal-footer" id="trash-modal-footer"></div>
+  </section>
+
+  <!-- Toast Host -->
+  <div class="toast-host" id="toast-host" role="status" aria-live="polite"></div>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
