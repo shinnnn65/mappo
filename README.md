@@ -41,20 +41,42 @@
 ## 界面预览
 
 <table>
-  <tr>
-    <td><strong>右侧宽版抽屉与折叠启动栏</strong> — 折叠头像式多工具启动器、独立的终端/访达/仓库入口，以及最近跨工具会话快捷交接</td>
-    <td><strong>跨 Agent 会话交接</strong> — 按需读取 Codex / Antigravity / Cursor / CodeBuddy 会话，支持按工具筛选与一键复制上下文或短指令</td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/project-drawer.png" alt="Mappo 右侧宽版抽屉与折叠启动栏"></td>
-    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo 跨 Agent 会话交接"></td>
-  </tr>
+  <thead>
+    <tr>
+      <th width="30%" align="left">功能</th>
+      <th width="70%" align="left">界面截图</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td valign="top">
+        <strong>右侧宽版抽屉与折叠启动栏</strong><br><br>
+        折叠头像式多工具启动器、独立的终端 / 访达 / 仓库入口，以及最近跨工具会话快捷交接。
+      </td>
+      <td>
+        <img src="docs/screenshots/project-drawer.png" alt="Mappo 右侧宽版抽屉与折叠启动栏" width="100%">
+      </td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>跨 Agent 会话交接</strong><br><br>
+        按需读取 Codex / Antigravity / Cursor / CodeBuddy 会话，支持按工具筛选与一键复制上下文或短指令。
+      </td>
+      <td>
+        <img src="docs/screenshots/session-handoff.png" alt="Mappo 跨 Agent 会话交接" width="100%">
+      </td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>整理与空间瘦身</strong><br><br>
+        流式体检可重建依赖、同仓库多副本与临时沙箱，全部可还原移入 macOS 废纸篓。
+      </td>
+      <td>
+        <img src="docs/screenshots/organize-hygiene.png" alt="Mappo 整理与空间瘦身" width="100%">
+      </td>
+    </tr>
+  </tbody>
 </table>
-
-<p align="center">
-  <strong>整理与空间瘦身</strong> — 流式体检可重建依赖、同仓库多副本与临时沙箱，全部可还原移入废纸篓<br><br>
-  <img src="docs/screenshots/organize-hygiene.png" alt="Mappo 整理与空间瘦身" width="76%">
-</p>
 
 ---
 

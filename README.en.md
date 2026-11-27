@@ -41,20 +41,42 @@ Modern AI-assisted development scatters projects across **5–8 Coding Agents an
 ## Screenshots
 
 <table>
-  <tr>
-    <td><strong>Project Drawer &amp; Multi-Tool Launcher</strong> — Wide right-side overlay with folded editor/agent avatars, separated utility bar, and quick session handoff</td>
-    <td><strong>Cross-Agent Session Handoff</strong> — On-demand Codex, Antigravity, Cursor &amp; CodeBuddy sessions with agent filters and one-click Copy Context / Copy Prompt</td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/project-drawer.png" alt="Mappo Wide Project Drawer and Folded Multi-Tool Launcher"></td>
-    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo Cross-Agent Session Handoff"></td>
-  </tr>
+  <thead>
+    <tr>
+      <th width="30%" align="left">Feature</th>
+      <th width="70%" align="left">Preview</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td valign="top">
+        <strong>Project Drawer &amp; Multi-Tool Launcher</strong><br><br>
+        Wide right-side overlay with folded editor/agent avatars, separated utility bar, and quick session handoff.
+      </td>
+      <td>
+        <img src="docs/screenshots/project-drawer.png" alt="Mappo Wide Project Drawer and Folded Multi-Tool Launcher" width="100%">
+      </td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>Cross-Agent Session Handoff</strong><br><br>
+        On-demand Codex, Antigravity, Cursor &amp; CodeBuddy sessions with agent filters and one-click Copy Context / Copy Prompt.
+      </td>
+      <td>
+        <img src="docs/screenshots/session-handoff.png" alt="Mappo Cross-Agent Session Handoff" width="100%">
+      </td>
+    </tr>
+    <tr>
+      <td valign="top">
+        <strong>Organize &amp; Safe Trash Disk Hygiene</strong><br><br>
+        Progressive scan for rebuildable dependencies, duplicate clones, and agent sandboxes — all reversible via macOS Trash.
+      </td>
+      <td>
+        <img src="docs/screenshots/organize-hygiene.png" alt="Mappo Organize and Disk Hygiene" width="100%">
+      </td>
+    </tr>
+  </tbody>
 </table>
-
-<p align="center">
-  <strong>Organize &amp; Safe Trash Disk Hygiene</strong> — Progressive scan for rebuildable dependencies, duplicate clones, and agent sandboxes<br><br>
-  <img src="docs/screenshots/organize-hygiene.png" alt="Mappo Organize and Disk Hygiene" width="76%">
-</p>
 
 ---
 
