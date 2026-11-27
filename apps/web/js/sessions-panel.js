@@ -13,7 +13,6 @@
     byProjectId: new Map(), // projectId -> { status, sessions, error, fetchedAt }
     handoffByRef: new Map(), // ref -> { status, data, error }
     agentFilter: "all",
-    expandedRef: null,
   };
 
   function invalidateCache(projectId = null) {
@@ -23,12 +22,10 @@
       sessionState.byProjectId.clear();
     }
     sessionState.handoffByRef.clear();
-    sessionState.expandedRef = null;
   }
 
   function resetSelectionState() {
     sessionState.agentFilter = "all";
-    sessionState.expandedRef = null;
   }
 
   function getProjectEntry(projectId) {
@@ -110,78 +107,11 @@
     }
   }
 
-  function renderPreviewHtml(ref, ctx) {
-    const entry = sessionState.handoffByRef.get(ref);
-    if (!entry || entry.status === "loading") {
-      return `<div class="session-preview-box">
-        <div class="session-preview-summary">正在按需只读解析会话内容…</div>
-      </div>`;
-    }
-    if (entry.status === "error") {
-      return `<div class="session-preview-box">
-        <div class="session-preview-note">${ctx.escapeHtml(entry.error || "加载失败")}</div>
-      </div>`;
-    }
-    const { handoff } = entry.data;
-    const parts = [];
-    if (handoff.limitations) {
-      parts.push(
-        `<div class="session-preview-note">${ctx.escapeHtml(handoff.limitations)}</div>`
-      );
-    }
-    if (handoff.summary) {
-      parts.push(`<div>
-        <div class="session-preview-block-title">原生摘要</div>
-        <div class="session-preview-summary">${ctx.escapeHtml(handoff.summary)}</div>
-      </div>`);
-    }
-    const msgs = handoff.messages || [];
-    if (msgs.length > 0) {
-      const turnsHtml = msgs
-        .slice(-4)
-        .map((m) => {
-          const isUser = m.role === "user";
-          return `<div class="session-turn-item${isUser ? " is-user" : ""}">
-            <span class="session-turn-role">${isUser ? "用户" : "助手"}</span>
-            <div>${ctx.escapeHtml(m.text)}</div>
-          </div>`;
-        })
-        .join("");
-      parts.push(`<div>
-        <div class="session-preview-block-title">最近对话（共 ${handoff.turns_total || msgs.length} 轮，预览最近 ${Math.min(4, msgs.length)} 条）</div>
-        <div class="session-preview-turns">${turnsHtml}</div>
-      </div>`);
-    }
-    const files = handoff.changed_files || [];
-    if (files.length > 0) {
-      const chips = files
-        .slice(0, 10)
-        .map(
-          (f) =>
-            `<span class="session-file-chip" title="${ctx.escapeHtml(f)}">${ctx.escapeHtml(
-              ctx.shortenPath(f)
-            )}</span>`
-        )
-        .join("");
-      parts.push(`<div>
-        <div class="session-preview-block-title">涉及改动文件（${files.length}）</div>
-        <div class="session-preview-files">${chips}</div>
-      </div>`);
-    }
-    if (parts.length === 0) {
-      parts.push(
-        `<div class="session-preview-summary">该会话暂无可预览的正文或文件改动。</div>`
-      );
-    }
-    return `<div class="session-preview-box">${parts.join("")}</div>`;
-  }
-
-  function renderSessionCardHtml(session, ctx, { compact = false } = {}) {
+  function renderSessionCardHtml(session, ctx) {
     const cov = COVERAGE_LABELS[session.coverage] || {
       text: session.coverage || "可读",
       tone: "is-partial",
     };
-    const expanded = !compact && sessionState.expandedRef === session.ref;
     const shortPrompt = `请通过 mappo 读取会话 ${session.ref} 的上下文并接着往下做`;
     return `<div class="session-card" data-session-ref="${ctx.escapeHtml(session.ref)}">
       <div class="session-card-row">
@@ -213,18 +143,8 @@
             <span class="icon-swap"><span class="icon-base">${ctx.ICONS.copy}</span><span class="icon-done">${ctx.ICONS.check}</span></span>
             <span>复制指令</span>
           </button>
-          ${
-            !compact
-              ? `<button type="button" class="session-action-btn" data-session-action="toggle-preview" data-ref="${ctx.escapeHtml(
-                  session.ref
-                )}" aria-expanded="${expanded ? "true" : "false"}">
-                  <span>${expanded ? "收起" : "预览"}</span>
-                </button>`
-              : ""
-          }
         </div>
       </div>
-      ${expanded ? renderPreviewHtml(session.ref, ctx) : ""}
     </div>`;
   }
 
@@ -267,14 +187,14 @@
     const moreBtn =
       items.length > 3
         ? `<button type="button" class="btn btn-subtle" style="height:24px;font-size:11.5px" data-drawer-tab="sessions">查看全部 ${items.length} 条 →</button>`
-        : `<button type="button" class="btn btn-subtle" style="height:24px;font-size:11.5px" data-drawer-tab="sessions">展开预览 →</button>`;
+        : `<button type="button" class="btn btn-subtle" style="height:24px;font-size:11.5px" data-drawer-tab="sessions">全部会话 →</button>`;
     return `<div class="drawer-section">
       <div class="sessions-section-header">
         <h3 class="drawer-section-title">最近跨工具会话（${items.length}）</h3>
         ${moreBtn}
       </div>
       <div class="sessions-list">
-        ${preview.map((item) => renderSessionCardHtml(item, ctx, { compact: true })).join("")}
+        ${preview.map((item) => renderSessionCardHtml(item, ctx)).join("")}
       </div>
     </div>`;
   }
@@ -388,23 +308,6 @@
       } finally {
         btn.disabled = false;
       }
-      return true;
-    }
-
-    if (action === "toggle-preview") {
-      const ref = btn.dataset.ref;
-      if (!ref) return true;
-      if (sessionState.expandedRef === ref) {
-        sessionState.expandedRef = null;
-        ctx.onSessionsUpdated(project.id);
-        return true;
-      }
-      sessionState.expandedRef = ref;
-      ctx.onSessionsUpdated(project.id);
-      try {
-        await ensureHandoff(ref, ctx);
-      } catch (_) {}
-      ctx.onSessionsUpdated(project.id);
       return true;
     }
 

@@ -32,6 +32,13 @@ _NOISE_PREFIXES = (
     "<AGENTS.md>",
     "<app-context>",
     "<turn_aborted>",
+    "<available_subagent_types>",
+    "<system_reminder>",
+    "<user_info>",
+    "<git_status>",
+    "<open_and_recently_viewed_files>",
+    "<manually_attached_skills>",
+    "<attached_files>",
     "# AGENTS.md instructions for ",
 )
 _SLUG_RE = re.compile(r"[^A-Za-z0-9]+")
@@ -750,8 +757,11 @@ def _read_cursor_transcript_jsonl(path):
                     text = _extract_content_text(msg.get("content"))
                 else:
                     text = _extract_content_text(msg)
-                if text:
-                    _append_message(messages, role, text)
+                if not text:
+                    continue
+                if role == "user" and _is_codex_injected_user_text(text):
+                    continue
+                _append_message(messages, role, text)
     except OSError:
         return []
     return messages

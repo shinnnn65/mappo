@@ -371,6 +371,19 @@ class SessionsTest(unittest.TestCase):
                                 "content": [
                                     {
                                         "type": "text",
+                                        "text": "<available_subagent_types>\nexplore: fast\n</available_subagent_types>",
+                                    }
+                                ]
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "role": "user",
+                            "message": {
+                                "content": [
+                                    {
+                                        "type": "text",
                                         "text": "<timestamp>Fri Nov 27</timestamp>\n<user_query>Tighten sidebar padding</user_query>",
                                     }
                                 ]

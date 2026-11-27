@@ -43,11 +43,11 @@ Modern AI-assisted development scatters projects across **5–8 Coding Agents an
 <table>
   <tr>
     <td><strong>Project Drawer &amp; Multi-Tool Launcher</strong> — Wide right-side overlay with folded editor/agent avatars, separated utility bar, and quick session handoff</td>
-    <td><strong>Cross-Agent Session Handoff</strong> — On-demand Codex, Antigravity, Cursor &amp; CodeBuddy sessions with one-click Copy Context, Copy Prompt, and inline preview</td>
+    <td><strong>Cross-Agent Session Handoff</strong> — On-demand Codex, Antigravity, Cursor &amp; CodeBuddy sessions with agent filters and one-click Copy Context / Copy Prompt</td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/project-drawer.png" alt="Mappo Wide Project Drawer and Folded Multi-Tool Launcher"></td>
-    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo Cross-Agent Session Handoff and Inline Preview"></td>
+    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo Cross-Agent Session Handoff"></td>
   </tr>
 </table>
 
@@ -179,7 +179,7 @@ mappo web --port 4318 --no-open
 ## Local Web UI (`mappo web`)
 
 - **Projects**: Time-grouped view (`Today`, `Last 7 days`, `Last 30 days`, `Dormant 30d+`), clickable `N copies` duplicate pills, reclaimable size hints, tags, favorites, remote workspace grouping, and a wide right-side overlay drawer (`Overview`, `Sessions & Handoff`, `Sources & Links`) with a folded editor/agent avatar launcher bar.
-- **Sessions & Handoff**: On-demand cross-agent session list inside each project drawer with one-click **Copy Context** (denoised Markdown ready for any chat window), **Copy Prompt** (1-line instruction for agents with the Mappo Skill), and inline context preview.
+- **Sessions & Handoff**: On-demand cross-agent session list inside each project drawer with agent filter pills and one-click **Copy Context** (denoised Markdown ready for any chat window) or **Copy Prompt** (1-line instruction for agents with the Mappo Skill).
 - **Agents**: Active Coding Agents, editors, and host-attributed editor extensions, plus a collapsible list of detected tools without records.
 - **Organize (Hygiene)**: Progressive background scanner for rebuildable dependencies (`node_modules`, `.venv`, `target`, `.next`, contextual `dist`/`build`), Git remote duplicate grouping, and agent sandbox cleanup. Trashing a whole directory runs an on-demand Git safety check (uncommitted changes, untracked files, unpushed commits, stashes, missing remote, local `.env` files) with a one-click fallback to *"Clean dependencies only"*.
 - **Keyboard shortcuts**: `/` or `Cmd+K` search, `↑`/`↓` navigate, `Enter` details, `E` open in recent tool, `T` terminal, `O` Finder, `S` star, `R` rescan, `Esc` close.

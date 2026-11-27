@@ -43,11 +43,11 @@
 <table>
   <tr>
     <td><strong>右侧宽版抽屉与折叠启动栏</strong> — 折叠头像式多工具启动器、独立的终端/访达/仓库入口，以及最近跨工具会话快捷交接</td>
-    <td><strong>跨 Agent 会话交接与预览</strong> — 按需读取 Codex / Antigravity / Cursor / CodeBuddy 会话，一键复制上下文或短指令，并支持抽屉内预览</td>
+    <td><strong>跨 Agent 会话交接</strong> — 按需读取 Codex / Antigravity / Cursor / CodeBuddy 会话，支持按工具筛选与一键复制上下文或短指令</td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/project-drawer.png" alt="Mappo 右侧宽版抽屉与折叠启动栏"></td>
-    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo 跨 Agent 会话交接与预览"></td>
+    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo 跨 Agent 会话交接"></td>
   </tr>
 </table>
 
@@ -179,7 +179,7 @@ mappo web --port 4318 --no-open
 ## 本地 Web UI（`mappo web`）
 
 - **项目视图**：按「今天 / 近 7 天 / 近 30 天 / 30 天以上未动」时间分层展示，自动标出 `N 份副本` 与大体积依赖提示；右侧宽版弹出蒙版抽屉按「概览 / 会话交接 / 来源与关联」分层，顶部提供折叠头像式多工具启动栏与独立的终端/访达/仓库入口。
-- **跨 Agent 会话交接**：项目抽屉内按需加载该项目在 Codex、Antigravity、Cursor、CodeBuddy 下的最近会话，支持一键「复制上下文」（Markdown 粘贴即续聊）、「复制指令」（一句话发给已装 Mappo Skill 的 Agent）与抽屉内上下文预览。
+- **跨 Agent 会话交接**：项目抽屉内按需加载该项目在 Codex、Antigravity、Cursor、CodeBuddy 下的最近会话，支持按工具筛选与一键「复制上下文」（Markdown 粘贴即续聊）或「复制指令」（一句话发给已装 Mappo Skill 的 Agent）。
 - **Agent 视图**：区分 Coding Agent、编辑器与编辑器扩展（含宿主编辑器归属），折叠暂无记录的工具。
 - **整理视图（Hygiene）**：后台渐进式扫描可重建依赖（`node_modules`、`.venv`、`target`、`.next`、带构建清单校验的 `dist`/`build`），聚合「同仓库多副本」与「临时沙箱」。移入废纸篓前按需跑一次 Git 安全检查（未提交改动、未跟踪文件、未推送提交、stash、无远端仓库、本地 `.env`），有风险时提供「改走仅清依赖」安全退路。
 - **快捷键**：`/` 或 `Cmd+K` 搜索、`↑`/`↓` 选择、`Enter` 看详情、`E` 用默认工具打开、`T` 终端、`O` 访达、`S` 收藏、`R` 重新扫描、`Esc` 关闭。
