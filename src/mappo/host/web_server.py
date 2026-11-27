@@ -14,13 +14,18 @@ import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from mappo import APP_VERSION
 from mappo.core.classify import annotate_project, detect_git_info
 from mappo.core.engine import scan, sort_project_agents
 from mappo.core.models import path_state
 from mappo.host.assets import load_asset
+from mappo.sessions import (
+    build_handoff,
+    list_sessions,
+    render_handoff_markdown,
+)
 from mappo.host.hygiene import (
     _dir_size_bytes,
     build_duplicate_groups,
@@ -46,6 +51,11 @@ STATIC_FILES = {
     "/assets/app.css": ("app.css", "text/css; charset=utf-8"),
     "/assets/app.js": ("app.js", "application/javascript; charset=utf-8"),
 }
+SUBASSET_PREFIXES = {
+    "/assets/js/": ("js", "application/javascript; charset=utf-8", "js"),
+    "/assets/css/": ("css", "text/css; charset=utf-8", "css"),
+}
+SUBASSET_FILENAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\.(js|css)$")
 ICON_ROUTE_PREFIX = "/assets/icons/"
 ICON_FILENAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\.(png|svg|webp)$")
 ICON_MIME_TYPES = {
@@ -311,6 +321,60 @@ class WebApp:
             }
         launched = launch_target(path, target, home=self.home_dir)
         return {"ok": True, "project_id": project_id, "path": path, **launched}
+
+    def get_project_sessions(self, project_id, *, agent=None, limit=30):
+        snapshot = self.index.load(self.scope)
+        project = next(
+            (row for row in snapshot.get("projects", []) if row["id"] == project_id),
+            None,
+        )
+        if project is None:
+            raise LookupError("未找到该项目记录")
+        path = project.get("path")
+        rows = (
+            list_sessions(
+                home=self.home_dir,
+                agent=agent or None,
+                project_paths=[path],
+                limit=limit,
+            )
+            if path
+            else []
+        )
+        return {
+            "project_id": project_id,
+            "path": path,
+            "sessions": rows,
+        }
+
+    def get_sessions(self, *, agent=None, project_query=None, limit=30):
+        rows = list_sessions(
+            home=self.home_dir,
+            agent=agent or None,
+            project_query=project_query or None,
+            limit=limit,
+        )
+        return {"sessions": rows}
+
+    def get_session_handoff(self, ref, *, agent=None, turns=6, max_chars=1600):
+        payload, candidates = build_handoff(
+            ref,
+            home=self.home_dir,
+            agent=agent or None,
+            turns=turns,
+            max_chars=max_chars,
+            include_git=True,
+        )
+        if payload is None:
+            if candidates:
+                raise ValueError("ambiguous|匹配到多个会话，请提供完整 ID 或工具前缀")
+            raise LookupError("未找到匹配的本地会话")
+        markdown = render_handoff_markdown(payload)
+        return {
+            "handoff": payload,
+            "markdown": markdown,
+            "short_prompt": f"请通过 mappo 读取会话 {payload['ref']} 的上下文并接着往下做",
+        }
 
     def change_link(self, first, second, *, remove=False):
         if not isinstance(first, str) or not isinstance(second, str):
@@ -694,6 +758,20 @@ def _make_handler(app, bound_port, quiet=True):
                     return
                 self._send_bytes(HTTPStatus.OK, data, mime, cache="no-cache")
                 return
+            for prefix, (subdir, mime, expected_ext) in SUBASSET_PREFIXES.items():
+                if route.startswith(prefix):
+                    asset_name = route[len(prefix) :]
+                    match = SUBASSET_FILENAME_RE.match(asset_name)
+                    if not match or match.group(1) != expected_ext:
+                        self._send_error_json(HTTPStatus.NOT_FOUND, "未找到该静态资源")
+                        return
+                    try:
+                        data = load_asset(f"{subdir}/{asset_name}")
+                    except FileNotFoundError:
+                        self._send_error_json(HTTPStatus.NOT_FOUND, "未找到该静态资源")
+                        return
+                    self._send_bytes(HTTPStatus.OK, data, mime, cache="no-cache")
+                    return
             if route.startswith(ICON_ROUTE_PREFIX):
                 icon_name = route[len(ICON_ROUTE_PREFIX) :]
                 match = ICON_FILENAME_RE.match(icon_name)
@@ -722,6 +800,96 @@ def _make_handler(app, bound_port, quiet=True):
                 except (OSError, sqlite3.Error, ValueError) as error:
                     self._send_error_json(
                         HTTPStatus.INTERNAL_SERVER_ERROR, f"加载空间体检失败：{error}"
+                    )
+                return
+            if route.startswith("/api/projects/") and route.endswith("/sessions"):
+                project_id = unquote(
+                    route[len("/api/projects/") : -len("/sessions")]
+                )
+                qs = parse_qs(urlsplit(self.path).query)
+                agent_param = (qs.get("agent") or [None])[0]
+                raw_limit = (qs.get("limit") or ["30"])[0]
+                try:
+                    limit = max(1, min(100, int(raw_limit)))
+                except ValueError:
+                    self._send_error_json(HTTPStatus.BAD_REQUEST, "limit 参数必须是整数")
+                    return
+                try:
+                    self._send_json(
+                        HTTPStatus.OK,
+                        app.get_project_sessions(
+                            project_id, agent=agent_param, limit=limit
+                        ),
+                    )
+                except LookupError as error:
+                    self._send_error_json(HTTPStatus.NOT_FOUND, str(error))
+                except ValueError as error:
+                    self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+                except (OSError, sqlite3.Error) as error:
+                    self._send_error_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR, f"加载项目会话失败：{error}"
+                    )
+                return
+            if route == "/api/sessions":
+                qs = parse_qs(urlsplit(self.path).query)
+                agent_param = (qs.get("agent") or [None])[0]
+                project_param = (qs.get("project") or [None])[0]
+                raw_limit = (qs.get("limit") or ["30"])[0]
+                try:
+                    limit = max(1, min(100, int(raw_limit)))
+                except ValueError:
+                    self._send_error_json(HTTPStatus.BAD_REQUEST, "limit 参数必须是整数")
+                    return
+                try:
+                    self._send_json(
+                        HTTPStatus.OK,
+                        app.get_sessions(
+                            agent=agent_param,
+                            project_query=project_param,
+                            limit=limit,
+                        ),
+                    )
+                except ValueError as error:
+                    self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+                except (OSError, sqlite3.Error) as error:
+                    self._send_error_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR, f"加载会话列表失败：{error}"
+                    )
+                return
+            if route == "/api/sessions/handoff":
+                qs = parse_qs(urlsplit(self.path).query)
+                ref_param = (qs.get("ref") or [""])[0]
+                agent_param = (qs.get("agent") or [None])[0]
+                raw_turns = (qs.get("turns") or ["6"])[0]
+                raw_max = (qs.get("max_chars") or ["1600"])[0]
+                try:
+                    turns = max(0, min(50, int(raw_turns)))
+                    max_chars = max(200, min(12000, int(raw_max)))
+                except ValueError:
+                    self._send_error_json(
+                        HTTPStatus.BAD_REQUEST, "turns 和 max_chars 必须是整数"
+                    )
+                    return
+                try:
+                    self._send_json(
+                        HTTPStatus.OK,
+                        app.get_session_handoff(
+                            ref_param,
+                            agent=agent_param,
+                            turns=turns,
+                            max_chars=max_chars,
+                        ),
+                    )
+                except LookupError as error:
+                    self._send_error_json(HTTPStatus.NOT_FOUND, str(error))
+                except ValueError as error:
+                    code, _, message = str(error).partition("|")
+                    self._send_error_json(
+                        HTTPStatus.BAD_REQUEST, message or code, code=code or None
+                    )
+                except (OSError, sqlite3.Error) as error:
+                    self._send_error_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR, f"生成会话交接包失败：{error}"
                     )
                 return
             self._send_error_json(HTTPStatus.NOT_FOUND, "未找到该路径")

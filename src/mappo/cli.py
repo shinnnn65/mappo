@@ -24,6 +24,11 @@ from mappo.host.launcher import (  # noqa: E402
 from mappo.host.web_server import OPEN_ERROR_MESSAGES, serve_web  # noqa: E402
 from mappo.providers.registry import merged_registry  # noqa: E402
 from mappo.query.search import filter_rows, since_time  # noqa: E402
+from mappo.sessions import (  # noqa: E402
+    build_handoff,
+    list_sessions,
+    render_handoff_markdown,
+)
 from mappo.storage.local_index import LocalIndex, scope_key  # noqa: E402
 
 META_COMMANDS = ("star", "unstar", "hide", "unhide", "tag", "untag")
@@ -83,6 +88,8 @@ def main():
             "workspaces",
             "inspect",
             "open",
+            "sessions",
+            "handoff",
             "hygiene",
             "doctor",
             "link",
@@ -94,7 +101,7 @@ def main():
     parser.add_argument(
         "targets",
         nargs="*",
-        help="inspect/open/star/hide 使用项目 ID（open 也支持名称片段）；link 使用两个 ID；tag 使用项目 ID 与标签名",
+        help="inspect/open/star/hide 使用项目 ID（open 也支持名称片段）；handoff 使用会话引用/URI/resume 命令；link 使用两个 ID；tag 使用项目 ID 与标签名",
     )
     parser.add_argument("--agent", choices=sorted(merged_registry()[0]))
     parser.add_argument(
@@ -145,12 +152,50 @@ def main():
     parser.add_argument(
         "--dry-run", action="store_true", help="open 时仅输出将执行的打开方式，不实际启动"
     )
+    parser.add_argument(
+        "--project",
+        help="sessions 时按项目名称、路径片段或项目 ID 筛选会话",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="sessions 返回的最大会话条数（默认 20）",
+    )
+    parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="sessions 时包含已归档或子代理会话",
+    )
+    parser.add_argument(
+        "--turns",
+        type=int,
+        help="handoff 保留的最近对话轮数（默认 6，0 表示全部）",
+    )
+    parser.add_argument(
+        "--max-chars",
+        type=int,
+        help="handoff 单条消息最大字符数（默认 1600）",
+    )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["md", "json"],
+        help="handoff 输出格式（默认 md，传 --json 时等价于 json）",
+    )
+    parser.add_argument(
+        "--no-git",
+        action="store_true",
+        help="handoff 时跳过读取工作区当前 Git 分支与未提交状态",
+    )
     args = parser.parse_args()
 
-    if any(
-        (args.name, args.path_contains, args.since, args.recent)
-    ) and args.command not in ("projects", "workspaces"):
+    if any((args.name, args.path_contains, args.recent)) and args.command not in (
+        "projects",
+        "workspaces",
+    ):
         parser.error("列表过滤参数只适用于 projects 和 workspaces")
+    if args.since and args.command not in ("projects", "workspaces", "sessions"):
+        parser.error("--since 只适用于 projects、workspaces 和 sessions")
     if any(
         (args.favorite, args.tag, args.hidden, args.include_hidden)
     ) and args.command != "projects":
@@ -163,6 +208,25 @@ def main():
         parser.error("--port 必须在 0 到 65535 之间")
     if (args.open_with is not None or args.dry_run) and args.command != "open":
         parser.error("--with 和 --dry-run 只适用于 open")
+    if any(
+        (args.project is not None, args.limit is not None, args.include_archived)
+    ) and args.command != "sessions":
+        parser.error("--project、--limit 和 --include-archived 只适用于 sessions")
+    if args.limit is not None and args.limit <= 0:
+        parser.error("--limit 必须大于 0")
+    if any(
+        (
+            args.turns is not None,
+            args.max_chars is not None,
+            args.output_format is not None,
+            args.no_git,
+        )
+    ) and args.command != "handoff":
+        parser.error("--turns、--max-chars、--format 和 --no-git 只适用于 handoff")
+    if args.turns is not None and args.turns < 0:
+        parser.error("--turns 不能为负数")
+    if args.max_chars is not None and args.max_chars < 0:
+        parser.error("--max-chars 不能为负数")
 
     linking = args.command in ("link", "unlink")
     tagging = args.command in ("tag", "untag")
@@ -183,6 +247,14 @@ def main():
     elif single_target:
         if len(args.targets) != 1:
             parser.error(f"{args.command} 需要一个 ID")
+    elif args.command == "handoff":
+        if not args.targets:
+            parser.error("handoff 需要一个会话引用（ID、URI 或 resume 命令）")
+    elif args.command == "sessions":
+        if len(args.targets) > 1:
+            parser.error("sessions 最多接受一个项目名称或路径片段")
+        if args.targets and args.project:
+            parser.error("sessions 不能同时指定位置参数与 --project")
     elif args.targets:
         parser.error(f"{args.command} 不接受位置参数")
 
@@ -191,7 +263,9 @@ def main():
     if (args.status or args.historical) and args.command != "projects":
         parser.error("--status 和 --historical 只适用于 projects")
     if args.indexed and (
-        args.command in ("scan", "web") or linking or args.command in META_COMMANDS
+        args.command in ("scan", "web", "handoff")
+        or linking
+        or args.command in META_COMMANDS
     ):
         parser.error("--indexed 用于查询已保存的结果")
     if args.no_index and args.command != "scan":
@@ -199,6 +273,79 @@ def main():
 
     index = LocalIndex(args.index_file)
     scope = scope_key(args.agent, args.path)
+
+    if args.command == "sessions":
+        project_query = args.project or (args.targets[0] if args.targets else None)
+        project_paths = None
+        if project_query and (args.indexed or project_query.startswith("p-")):
+            try:
+                loaded = index.load(scope_key(None, args.path))
+                matched, _ = _resolve_project_for_open(
+                    loaded.get("projects", []), project_query
+                )
+                if matched and matched.get("path"):
+                    project_paths = [matched["path"]]
+                    project_query = None
+            except (OSError, sqlite3.Error, ValueError):
+                pass
+        try:
+            rows = list_sessions(
+                agent=args.agent,
+                project_query=project_query,
+                project_paths=project_paths,
+                since=args.since,
+                limit=args.limit if args.limit is not None else 20,
+                include_archived=args.include_archived,
+            )
+        except ValueError as error:
+            parser.exit(1, f"{error}\n")
+        if args.json:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+            return
+        print("REF\tAGENT\tUPDATED (UTC)\tCOVERAGE\tPROJECT\tTITLE")
+        for row in rows:
+            proj_name = Path(row["cwd"]).name if row.get("cwd") else "—"
+            print(
+                row["ref"],
+                row["agent"],
+                row["updated_at"] or "—",
+                row["coverage"],
+                proj_name,
+                row["title"],
+                sep="\t",
+            )
+        return
+
+    if args.command == "handoff":
+        raw_ref = " ".join(args.targets)
+        try:
+            payload, candidates = build_handoff(
+                raw_ref,
+                agent=args.agent,
+                turns=args.turns if args.turns is not None else 6,
+                max_chars=args.max_chars if args.max_chars is not None else 1600,
+                include_git=not args.no_git,
+            )
+        except ValueError as error:
+            parser.exit(1, f"{error}\n")
+        if payload is None:
+            if candidates:
+                lines = ["匹配到多个会话，请补充工具前缀（如 codex:<id>）或更长的 ID："]
+                for item in candidates[:8]:
+                    lines.append(
+                        f"  {item['ref']}\t{item['updated_at'] or '—'}\t{item['title']}"
+                    )
+                parser.exit(1, "\n".join(lines) + "\n")
+            parser.exit(
+                1,
+                "未找到匹配的本地会话；可先运行 `mappo sessions` 查看可用会话引用\n",
+            )
+        want_json = args.json or args.output_format == "json"
+        if want_json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(render_handoff_markdown(payload), end="")
+        return
 
     if args.command == "web":
         try:

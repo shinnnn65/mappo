@@ -201,6 +201,8 @@
     },
     selectedProjectId: null,
     selectedRemoteGroupKey: null,
+    drawerTab: "overview",
+    drawerAppsExpanded: false,
     focusedProjectId: null,
     lastTriggerEl: null,
     diagOpen: false,
@@ -2732,8 +2734,33 @@
       .join("");
   }
 
+  function getSessionsPanelCtx() {
+    return {
+      api,
+      escapeHtml,
+      renderAgentIconHtml,
+      formatRelativeTime,
+      formatExactTime,
+      shortenPath,
+      agentLabel: (agentId) => state.agentNameById.get(agentId) || agentId,
+      ICONS,
+      showToast,
+      copyText: async (text, btnEl, toastMessage) => {
+        await copyPath(text, btnEl);
+        if (toastMessage) {
+          showToast(toastMessage, { duration: 2600 });
+        }
+      },
+      onSessionsUpdated: (pid) => {
+        if (state.selectedProjectId !== pid) return;
+        const proj = state.projectById.get(pid);
+        if (proj) renderDrawerContent(proj, false, { preserveScroll: true });
+      },
+    };
+  }
+
   /* Detail Drawer */
-  function openDrawer(projectId, triggerEl = null, { openLinkPicker = false } = {}) {
+  function openDrawer(projectId, triggerEl = null, { openLinkPicker = false, tab = null } = {}) {
     const project = state.projectById.get(projectId);
     if (!project) return;
     const wasOpen = Boolean(state.selectedProjectId || state.selectedRemoteGroupKey);
@@ -2743,9 +2770,22 @@
     state.focusedProjectId = projectId;
     state.linkPickerOpen = Boolean(openLinkPicker);
     state.linkPickerQuery = "";
+    if (changed) {
+      state.drawerTab = openLinkPicker ? "details" : tab || "overview";
+      state.drawerAppsExpanded = false;
+      window.MappoSessionsPanel?.resetSelectionState();
+    } else if (openLinkPicker) {
+      state.drawerTab = "details";
+    } else if (tab) {
+      state.drawerTab = tab;
+    }
+    if (project.status !== "directory" && state.drawerTab === "sessions") {
+      state.drawerTab = "overview";
+    }
     if (triggerEl) state.lastTriggerEl = triggerEl;
 
     renderDrawerContent(project, wasOpen && changed);
+    window.MappoSessionsPanel?.ensureProjectSessions(project, getSessionsPanelCtx());
     document.body.classList.add("drawer-open");
     el.drawer.inert = false;
     el.drawer.classList.add("is-open");
@@ -2956,105 +2996,11 @@
     if (body) body.scrollTop = 0;
   }
 
-  function renderDrawerContent(project, animateSwap = false) {
-    const renderGitSectionHtml = (info) => {
-      if (!info) return "";
-      const kindMeta = GIT_KIND_META[info.kind] || {
-        label: info.is_git ? "Git 仓库" : "纯本地目录",
-        pill: info.is_git ? "is-git" : "is-local-only",
-      };
-      if (!info.is_git) {
-        return `
-          <div class="drawer-section">
-            <h3 class="drawer-section-title">版本控制</h3>
-            <div class="meta-grid">
-              <div class="meta-row">
-                <span class="meta-key">仓库类型</span>
-                <span class="meta-val"><span class="status-pill is-local-only">纯本地目录</span></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-key">说明</span>
-                <span class="meta-val">当前目录及上级目录未检测到 .git 仓库</span>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      const branchText = info.branch
-        ? info.detached
-          ? `${info.branch}（游离 HEAD）`
-          : info.branch
-        : "未知";
-      const remoteRowHtml = info.remote_url
-        ? `<div class="meta-row">
-            <span class="meta-key">远端地址${
-              info.remote_name && info.remote_name !== "origin"
-                ? `（${escapeHtml(info.remote_name)}）`
-                : ""
-            }</span>
-            <span class="meta-val">
-              <span class="git-remote-wrap">
-                <span class="git-remote-url" title="${escapeHtml(info.remote_url)}">${escapeHtml(
-            info.remote_url
-          )}</span>
-                <button type="button" class="git-inline-copy" data-drawer-action="copy-text" data-text="${escapeHtml(
-                  info.remote_url
-                )}" aria-label="复制远端地址" title="复制远端地址">
-                  <span class="icon-swap"><span class="icon-base">${ICONS.copy}</span><span class="icon-done">${ICONS.check}</span></span>
-                </button>
-              </span>
-            </span>
-          </div>`
-        : `<div class="meta-row">
-            <span class="meta-key">远端地址</span>
-            <span class="meta-val">仅本地 Git 仓库（未配置 remote）</span>
-          </div>`;
-      let parentRowHtml = "";
-      if (info.parent_repo) {
-        const parentProj = state.projectByPath.get(info.parent_repo);
-        const parentShort = shortenPath(info.parent_repo);
-        const parentValHtml = parentProj
-          ? `<button type="button" class="git-parent-btn" data-drawer-action="jump-project" data-id="${escapeHtml(
-              parentProj.id
-            )}" title="跳转到父仓库详情：${escapeHtml(info.parent_repo)}">${escapeHtml(
-              parentShort
-            )}</button>`
-          : `<span class="git-parent-text" title="${escapeHtml(info.parent_repo)}">${escapeHtml(
-              parentShort
-            )}</span>`;
-        parentRowHtml = `<div class="meta-row">
-          <span class="meta-key">所属父仓库</span>
-          <span class="meta-val">${parentValHtml}</span>
-        </div>`;
-      }
-      return `
-        <div class="drawer-section">
-          <h3 class="drawer-section-title">Git 仓库</h3>
-          <div class="meta-grid">
-            <div class="meta-row">
-              <span class="meta-key">仓库形态</span>
-              <span class="meta-val"><span class="status-pill ${kindMeta.pill}">${escapeHtml(
-        kindMeta.label
-      )}</span></span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-key">当前分支</span>
-              <span class="meta-val"><span class="git-branch-pill" title="${escapeHtml(
-                branchText
-              )}">${escapeHtml(branchText)}</span></span>
-            </div>
-            ${remoteRowHtml}
-            ${parentRowHtml}
-          </div>
-        </div>
-      `;
-    };
+  function renderDrawerContent(project, animateSwap = false, { preserveScroll = false } = {}) {
+    const prevBody = preserveScroll ? document.getElementById("drawer-body") : null;
+    const prevScrollTop = prevBody ? prevBody.scrollTop : 0;
+
     const name = projectName(project);
-    const statusMeta = STATUS_META[project.status] || {
-      label: project.status,
-      short: project.status,
-      pill: "is-neutral",
-    };
     const canOpen = project.status === "directory";
     const isAttention = isAttentionProject(project);
     const agentActivity = projectAgentActivityMap(project);
@@ -3076,14 +3022,8 @@
           <span>${project.status === "remote" ? "复制远程地址" : "复制原路径"}</span>
         </button>`;
 
-    const secondaryCopyBtn = canOpen
-      ? `<button type="button" class="btn btn-secondary" data-drawer-action="copy" title="复制完整路径">
-          <span class="icon-swap"><span class="icon-base">${ICONS.copy}</span><span class="icon-done">${ICONS.check}</span></span>
-          <span>复制路径</span>
-        </button>`
-      : "";
-
-    const drawerLaunchChips = [];
+    const appLaunchers = [];
+    const utilLaunchers = [];
     if (canOpen) {
       const projAgents = new Set(project.agents || []);
       const launchers = availableLaunchers()
@@ -3116,63 +3056,26 @@
           return 0;
         });
       for (const item of launchers) {
-        const tip =
-          item.opens_path === false
-            ? `打开 ${item.label} 应用（暂不支持直接传入目录）`
-            : `在 ${item.label} 中打开`;
-        drawerLaunchChips.push(
-          `<button type="button" class="launch-chip" data-drawer-action="open" data-target="${escapeHtml(
-            item.id
-          )}" title="${escapeHtml(tip)}">
-            <span class="icon-swap"><span class="icon-base">${renderLauncherChipIcon(
-              item.id
-            )}</span><span class="icon-done">${ICONS.check}</span></span>
-            <span>${escapeHtml(item.label)}</span>
-          </button>`
-        );
+        if (item.kind === "editor" || item.kind === "coding_agent") {
+          appLaunchers.push(item);
+        } else {
+          utilLaunchers.push({
+            id: item.id,
+            label: item.label,
+            tip: `在 ${item.label} 中打开`,
+            iconHtml: renderLauncherChipIcon(item.id),
+          });
+        }
       }
       if (project.git?.web_url) {
-        drawerLaunchChips.push(
-          `<button type="button" class="launch-chip" data-drawer-action="open" data-target="remote" title="在浏览器打开 Git 仓库 (${escapeHtml(
-            project.git.web_url
-          )})">
-            <span class="icon-swap"><span class="icon-base">${ICONS.externalLink}</span><span class="icon-done">${ICONS.check}</span></span>
-            <span>Git 仓库</span>
-          </button>`
-        );
+        utilLaunchers.push({
+          id: "remote",
+          label: "仓库",
+          tip: `在浏览器打开 Git 仓库 (${project.git.web_url})`,
+          iconHtml: ICONS.externalLink,
+        });
       }
     }
-    const drawerLaunchStripHtml =
-      drawerLaunchChips.length > 0
-        ? `<div class="drawer-launch-strip" aria-label="其他打开方式">${drawerLaunchChips.join("")}</div>`
-        : "";
-
-    const currentTags = project.tags || [];
-    const currentTagSet = new Set(currentTags.map((t) => t.toLowerCase()));
-    const suggestions = (state.data?.all_tags || [])
-      .map((item) => item.tag)
-      .filter((t) => !currentTagSet.has(t.toLowerCase()))
-      .slice(0, 8);
-
-    const tagsHtml = currentTags
-      .map(
-        (tag) => `<span class="tag-removable" data-tag-chip="${escapeHtml(tag)}">
-          <span>#${escapeHtml(tag)}</span>
-          <button type="button" class="tag-remove-btn" data-drawer-action="remove-tag" data-tag="${escapeHtml(
-            tag
-          )}" aria-label="移除标签 ${escapeHtml(tag)}">${ICONS.close}</button>
-        </span>`
-      )
-      .join("");
-
-    const suggestionsHtml = suggestions
-      .map(
-        (tag) =>
-          `<button type="button" class="tag-suggest-btn" data-drawer-action="add-suggest-tag" data-tag="${escapeHtml(
-            tag
-          )}">+ ${escapeHtml(tag)}</button>`
-      )
-      .join("");
 
     const rawEvidenceRows =
       project.workspaces && project.workspaces.length > 0
@@ -3296,48 +3199,7 @@
       ? renderLinkPickerHtml(project)
       : `<button type="button" class="btn btn-subtle" data-drawer-action="open-link-picker">关联迁移前后的其他路径</button>`;
 
-    const indexStateText =
-      project.index_state === "historical"
-        ? `历史记录（上次出现于 ${formatExactTime(project.last_seen)}）`
-        : "最近一次扫描已确认";
-
     const isSandbox = isSandboxProject(project);
-    const isPromotedSandbox = project.asset_reason === "promoted_sandbox";
-    const isRemote = project.status === "remote";
-    const rInfo = isRemote ? remoteInfo(project) : null;
-    const gInfo = gitInfo(project);
-    const gitSectionHtml = renderGitSectionHtml(gInfo);
-    const dupGroup = state.duplicateGroupByProjectId.get(project.id);
-    const drawerDupCalloutHtml =
-      dupGroup && dupGroup.count >= 2 && canOpen
-        ? `<div class="drawer-inline-callout">
-            <div class="drawer-inline-callout-text">
-              <span class="drawer-inline-callout-title">本机另有 ${dupGroup.count - 1} 份同源副本</span>
-              <span class="drawer-inline-callout-sub">${escapeHtml(dupGroup.name)} · 共 ${dupGroup.count} 个本地目录</span>
-            </div>
-            <button type="button" class="btn btn-secondary" style="height:28px;font-size:12px" data-drawer-action="compare-duplicates" data-remote-key="${escapeHtml(
-              dupGroup.remote_key
-            )}">去对比</button>
-          </div>`
-        : "";
-    const reclaimBytes = projectReclaimableBytes(project.id);
-    const artifacts = projectArtifacts(project.id);
-    const drawerHygieneCalloutHtml =
-      canOpen && reclaimBytes > 0
-        ? `<div class="drawer-inline-callout">
-            <div class="drawer-inline-callout-text">
-              <span class="drawer-inline-callout-title">可安全瘦身 ${escapeHtml(formatBytes(reclaimBytes))}</span>
-              <span class="drawer-inline-callout-sub">${escapeHtml(
-                artifacts
-                  .slice(0, 3)
-                  .map((a) => `${a.rel_path} (${formatBytes(a.bytes)})`)
-                  .join("、")
-              )}</span>
-            </div>
-            <button type="button" class="btn btn-secondary" style="height:28px;font-size:12px" data-drawer-action="slim-project">清理依赖</button>
-          </div>`
-        : "";
-
     let contextCardHtml = "";
     if (isAttention) {
       const titleText =
@@ -3372,133 +3234,32 @@
       `;
     }
 
-    el.drawerContent.innerHTML = `
-      <div class="drawer-header">
-        <div class="drawer-title-row">
-          <button type="button" class="star-btn${
-            project.favorite ? " is-starred" : ""
-          }" data-drawer-action="star" aria-label="${
-      project.favorite ? "取消收藏" : "收藏项目"
-    }" title="${project.favorite ? "取消收藏 (S)" : "收藏项目 (S)"}">
-            ${project.favorite ? ICONS.starFilled : ICONS.starOutline}
-          </button>
-          <h2 class="drawer-title" title="${escapeHtml(name)}">${escapeHtml(name)}</h2>
-          <button type="button" class="icon-btn" data-drawer-action="close" aria-label="关闭详情">${
-            ICONS.close
-          }</button>
-        </div>
-        <div class="drawer-path-box">
-          <span class="drawer-path-text">${escapeHtml(project.path)}</span>
-        </div>
-        <div class="drawer-primary-actions">
-          ${primaryBtn}
-          ${secondaryCopyBtn}
-        </div>
-        ${drawerLaunchStripHtml}
-      </div>
-      <div class="drawer-body" id="drawer-body">
-        ${contextCardHtml}
-        <div class="drawer-section">
-          <h3 class="drawer-section-title">状态与最近活动</h3>
-          <div class="meta-grid">
-            <div class="meta-row">
-              <span class="meta-key">目录状态</span>
-              <span class="meta-val"><span class="status-pill ${statusMeta.pill}">${escapeHtml(
-      statusMeta.short || "可用"
-    )}</span></span>
-            </div>
-            ${
-              isRemote && rInfo?.host
-                ? `<div class="meta-row">
-                    <span class="meta-key">远程主机</span>
-                    <span class="meta-val">${escapeHtml(rInfo.host)}</span>
-                  </div>
-                  <div class="meta-row">
-                    <span class="meta-key">远端路径</span>
-                    <span class="meta-val">${escapeHtml(rInfo.remote_path)}</span>
-                  </div>`
-                : `<div class="meta-row">
-                    <span class="meta-key">说明</span>
-                    <span class="meta-val">${escapeHtml(statusMeta.label)}</span>
-                  </div>`
-            }
-            <div class="meta-row">
-              <span class="meta-key">索引状态</span>
-              <span class="meta-val">${escapeHtml(indexStateText)}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-key">最近活动</span>
-              <span class="meta-val">${escapeHtml(
-                formatExactTime(project.last_activity)
-              )}</span>
-            </div>
-            ${
-              project.activity_source
-                ? `<button type="button" class="mini-disclosure-btn" data-toggle-panel="drawer-activity-src" aria-expanded="false">
-                    ${ICONS.chevron}<span>查看时间依据</span>
-                  </button>
-                  <div class="disclosure-panel" id="drawer-activity-src">
-                    <div class="disclosure-panel-inner">
-                      <div class="raw-evidence-box">${escapeHtml(
-                        shortenPath(project.activity_source)
-                      )}</div>
-                    </div>
-                  </div>`
-                : ""
-            }
-          </div>
-          ${drawerHygieneCalloutHtml}
-        </div>
-
-        ${gitSectionHtml}
-        ${drawerDupCalloutHtml}
-
-        <div class="drawer-section">
-          <h3 class="drawer-section-title">标签</h3>
-          ${tagsHtml ? `<div class="tag-list">${tagsHtml}</div>` : ""}
-          <form class="tag-input-row" id="drawer-tag-form">
-            <input type="text" id="drawer-tag-input" class="text-input" maxlength="32" placeholder="输入新标签并回车，如 核心项目" autocomplete="off">
-            <button type="submit" class="btn btn-secondary" style="height:32px">添加</button>
-          </form>
-          <div class="inline-error" id="drawer-tag-error" hidden></div>
-          ${suggestionsHtml ? `<div class="tag-suggestions">${suggestionsHtml}</div>` : ""}
-        </div>
-
-        <div class="drawer-section">
-          <h3 class="drawer-section-title">发现记录（${evidenceRows.length}）</h3>
-          <div class="evidence-list">${evidenceHtml}</div>
-        </div>
-
-        <div class="drawer-section">
-          <h3 class="drawer-section-title">关联项目${
-            relatedIds.length ? `（${relatedIds.length}）` : ""
-          }</h3>
-          ${relatedHtml}
-          ${linkPickerHtml}
-        </div>
-      </div>
-      <div class="drawer-footer">
-        <span class="drawer-id-label">${escapeHtml(project.id)}</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          ${
-            canOpen
-              ? `<button type="button" class="btn btn-subtle" data-drawer-action="trash-project" title="检查 Git 状态后移入废纸篓">移入废纸篓</button>`
-              : ""
-          }
-          ${
-            isPromotedSandbox
-              ? `<button type="button" class="btn btn-subtle" data-drawer-action="demote">移回临时沙盒</button>`
-              : ""
-          }
-          <button type="button" class="btn btn-subtle" data-drawer-action="${
-            project.hidden ? "unhide" : "hide"
-          }">
-            ${project.hidden ? ICONS.eye : ICONS.eyeOff}
-            <span>${project.hidden ? "恢复显示" : "隐藏此项目"}</span>
-          </button>
-        </div>
-      </div>
-    `;
+    el.drawerContent.innerHTML = window.MappoDetailDrawer.renderProjectDrawer(project, {
+      state,
+      name,
+      primaryBtn,
+      appLaunchers,
+      utilLaunchers,
+      renderLauncherChipIcon,
+      contextCardHtml,
+      evidenceHtml,
+      evidenceCount: evidenceRows.length,
+      relatedHtml,
+      relatedCount: relatedIds.length,
+      linkPickerHtml,
+      STATUS_META,
+      ICONS,
+      escapeHtml,
+      formatRelativeTime,
+      formatExactTime,
+      formatBytes,
+      shortenPath,
+      gitInfo,
+      remoteInfo,
+      projectReclaimableBytes,
+      projectArtifacts,
+      sessionsCtx: getSessionsPanelCtx(),
+    });
 
     if (animateSwap) {
       el.drawerContent.classList.remove("is-swapping");
@@ -3506,7 +3267,7 @@
       el.drawerContent.classList.add("is-swapping");
     }
     const body = document.getElementById("drawer-body");
-    if (body) body.scrollTop = 0;
+    if (body) body.scrollTop = preserveScroll ? prevScrollTop : 0;
   }
 
   function getLinkCandidates(project) {
@@ -4195,6 +3956,7 @@
     const scrollY = window.scrollY;
     try {
       const payload = await api("/api/scan", { method: "POST" });
+      window.MappoSessionsPanel?.invalidateCache();
       el.topProgress.classList.remove("is-loading");
       el.topProgress.classList.add("is-finishing");
       applyData(payload);
@@ -5397,6 +5159,34 @@
   });
 
   el.drawerContent.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest("[data-drawer-tab]");
+    if (tabBtn && state.selectedProjectId) {
+      const nextTab = tabBtn.dataset.drawerTab || "overview";
+      const project = state.projectById.get(state.selectedProjectId);
+      if (project && state.drawerTab !== nextTab) {
+        state.drawerTab = nextTab;
+        renderDrawerContent(project, false);
+        if (nextTab === "sessions") {
+          window.MappoSessionsPanel?.ensureProjectSessions(
+            project,
+            getSessionsPanelCtx()
+          );
+        }
+      }
+      return;
+    }
+    const sessionBtn = e.target.closest("[data-session-action]");
+    if (sessionBtn && state.selectedProjectId) {
+      const project = state.projectById.get(state.selectedProjectId);
+      if (project) {
+        window.MappoSessionsPanel?.handleAction(
+          sessionBtn,
+          project,
+          getSessionsPanelCtx()
+        );
+      }
+      return;
+    }
     const toggleBtn = e.target.closest("[data-toggle-panel]");
     if (toggleBtn) {
       const panel = document.getElementById(toggleBtn.dataset.togglePanel);
@@ -5431,6 +5221,10 @@
     const project = state.projectById.get(pid);
     if (!project) return;
     if (action === "star") toggleStar(pid, btn);
+    else if (action === "toggle-drawer-apps") {
+      state.drawerAppsExpanded = !state.drawerAppsExpanded;
+      renderDrawerContent(project, false, { preserveScroll: true });
+    }
     else if (action === "open") openProjectTarget(pid, btn.dataset.target || "finder", btn);
     else if (action === "copy") copyPath(project.path, btn);
     else if (action === "hide") setProjectHidden(pid, true);
@@ -5477,6 +5271,7 @@
     } else if (action === "unlink") {
       changeLink(pid, btn.dataset.id, true);
     } else if (action === "open-link-picker") {
+      state.drawerTab = "details";
       state.linkPickerOpen = true;
       renderDrawerContent(project, false);
       document.getElementById("link-picker-input")?.focus();

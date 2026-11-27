@@ -1021,6 +1021,96 @@ class WebAndMetadataTest(unittest.TestCase):
         self.assertEqual(len(hygiene_cli["reclaimable"]), 1)
         self.assertEqual(hygiene_cli["reclaimable"][0]["path"], str(clone1))
 
+    def test_web_sessions_handoff_and_modular_assets(self):
+        # Seed a CodeBuddy CLI session for repo_a
+        sid = "ba04b13b-0cba-4fbd-b893-b7626124e60a"
+        sess_file = (
+            self.home / ".codebuddy" / "projects" / "alpha" / f"{sid}.jsonl"
+        )
+        sess_file.parent.mkdir(parents=True, exist_ok=True)
+        sess_file.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "cwd": str(self.repo_a),
+                            "sessionId": sid,
+                            "timestamp": "2026-11-27T06:00:00Z",
+                            "content": [{"type": "text", "text": "Refactor drawer UI"}],
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "cwd": str(self.repo_a),
+                            "sessionId": sid,
+                            "timestamp": "2026-11-27T06:02:00Z",
+                            "content": [{"type": "text", "text": "Split drawer into modules."}],
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        app = WebApp(
+            index=self.index,
+            selected_agent="claude",
+            scan_fn=lambda: scan(self.home, "claude"),
+            home_dir=self.home,
+        )
+        server, url = create_server(app, port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+
+        # Modular CSS/JS assets are served and invalid paths rejected
+        for asset_path, expected in (
+            ("/assets/css/drawer.css", ".detail-drawer"),
+            ("/assets/js/sessions-panel.js", "MappoSessionsPanel"),
+            ("/assets/js/detail-drawer.js", "MappoDetailDrawer"),
+        ):
+            status, body, _ = self._request(f"{url}{asset_path}")
+            self.assertEqual(status, 200)
+            self.assertIn(expected, body)
+        bad_status, _, _ = self._request(f"{url}/assets/js/../../etc/passwd")
+        self.assertEqual(bad_status, 404)
+
+        status, state_raw, _ = self._request(f"{url}/api/state")
+        self.assertEqual(status, 200)
+        projects = json.loads(state_raw)["projects"]
+        alpha = next(p for p in projects if p["path"] == str(self.repo_a))
+
+        # Project sessions endpoint
+        status, sess_raw, _ = self._request(
+            f"{url}/api/projects/{alpha['id']}/sessions?limit=10"
+        )
+        self.assertEqual(status, 200)
+        sess_data = json.loads(sess_raw)
+        self.assertEqual(len(sess_data["sessions"]), 1)
+        self.assertEqual(sess_data["sessions"][0]["ref"], "codebuddy:ba04b13b")
+
+        # Session handoff endpoint
+        status, ho_raw, _ = self._request(
+            f"{url}/api/sessions/handoff?ref=codebuddy:ba04b13b&turns=4"
+        )
+        self.assertEqual(status, 200)
+        ho_data = json.loads(ho_raw)
+        self.assertEqual(ho_data["handoff"]["coverage"], "full")
+        self.assertIn("Refactor drawer UI", ho_data["markdown"])
+        self.assertIn("codebuddy:ba04b13b", ho_data["short_prompt"])
+
+        # Unknown ref returns 404
+        miss_status, _, _ = self._request(
+            f"{url}/api/sessions/handoff?ref=deadbeef9999"
+        )
+        self.assertEqual(miss_status, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 ---
 name: mappo
-description: Discover, query, open, and audit local macOS Coding Agent workspaces (Codex, Cursor, Claude Code, Antigravity, CodeBuddy, WorkBuddy, DeepSeek Harness, VS Code, Trae) using the read-only Mappo CLI. Use when the user asks what projects they worked on recently across tools, where a local repository or worktree is located, which repositories have duplicate clones, how much disk space rebuildable dependencies or agent sandboxes consume, or wants to open a project in its most recently used editor or desktop agent.
+description: Discover, query, open, audit local macOS Coding Agent workspaces, and read/handoff cross-agent sessions (Codex, Antigravity, Cursor, CodeBuddy, Claude Code, WorkBuddy, DeepSeek Harness, VS Code, Trae) using the read-only Mappo CLI. Use when the user asks what projects they worked on recently across tools, where a local repository or worktree is located, which repositories have duplicate clones, how much disk space rebuildable dependencies or agent sandboxes consume, wants to open a project in its most recently used editor or desktop agent, or pastes a session reference/URI/resume command (e.g. `codex://threads/...`, `codex resume ...`, `conversation://...`, `cursor:<id>`, `codebuddy:<id>`) to continue a conversation from another Coding Agent.
 ---
 
 # Mappo — Local Coding Agent Workspace Map
@@ -40,9 +40,12 @@ Prefer `--indexed --json` for fast queries against the local SQLite snapshot (`~
 | Check missing sources or macOS permission issues | `mappo doctor --indexed --json` |
 | Preview how `mappo open` will launch a project | `mappo open <name-or-id> --indexed --dry-run --json` |
 | Open a project in its most recent IDE / Agent (on explicit request) | `mappo open <name-or-id> --indexed` (or `--with cursor\|codex\|terminal\|finder\|remote`) |
+| List recent sessions across Codex, Antigravity, Cursor, CodeBuddy | `mappo sessions [--project <name-or-id>] [--agent codex\|antigravity\|cursor\|codebuddy] [--limit 10] --json` |
+| Read & hand off a session from another Agent (accepts `codex://`, `codex resume`, `conversation://`, `<agent>:<id>`, or bare UUID) | `mappo handoff "<ref-or-command>" --turns 6` (or `--json`) |
 
 ## 3. Interpretation & Safety Rules
 
 - **Respect evidence boundaries**: `kind="native"` indicates an explicit workspace registration; `kind="inferred"` comes from session history or cwd logs and may include temporary task directories; `asset_kind="sandbox"` denotes agent-managed sandboxes or Git worktrees. Do not present sandboxes or inferred cache paths as confirmed standalone projects without checking `mappo inspect`.
+- **Respect session coverage**: `mappo sessions` and `mappo handoff` read transcripts strictly on demand without indexing chat bodies into `index.sqlite`. Check `coverage` (`full`, `summary_only`, `meta_and_diffs`, `meta_only`) and surface `limitations` honestly (for example, CodeBuddy CN IDE sessions only expose local metadata and `edit-sessions` file diffs, whereas CodeBuddy CLI, Codex, Antigravity, and Cursor transcripts expose full turns).
 - **Stay strictly read-only by default**: Never run `rm -rf` or delete project directories based on `mappo hygiene` output. Present a concise summary of reclaimable artifact sizes (`node_modules`, `.venv`, `dist`, `target`, etc.) and duplicate clones, and guide the user to run `mappo web` (Organize tab) for interactive preview, on-demand Git safety checks, and reversible macOS Trash cleanup.
 - **Keep user privacy intact**: Only surface project paths, branches, timestamps, and tool metadata relevant to the user's request.
