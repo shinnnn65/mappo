@@ -42,14 +42,19 @@ Modern AI-assisted development scatters projects across **5–8 Coding Agents an
 
 <table>
   <tr>
-    <td><strong>Organize &amp; Disk Hygiene</strong> — Progressive scan for rebuildable dependencies, duplicate repos, and sandboxes</td>
-    <td><strong>Dark Mode</strong> — Time-bucketed local projects with duplicate &amp; reclaimable indicators</td>
+    <td><strong>Project Drawer &amp; Multi-Tool Launcher</strong> — Wide right-side overlay with folded editor/agent avatars, separated utility bar, and quick session handoff</td>
+    <td><strong>Cross-Agent Session Handoff</strong> — On-demand Codex, Antigravity, Cursor &amp; CodeBuddy sessions with one-click Copy Context, Copy Prompt, and inline preview</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/organize-hygiene.png" alt="Mappo Organize and Disk Hygiene"></td>
-    <td><img src="docs/screenshots/projects-dark.png" alt="Mappo Dark Mode"></td>
+    <td><img src="docs/screenshots/project-drawer.png" alt="Mappo Wide Project Drawer and Folded Multi-Tool Launcher"></td>
+    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo Cross-Agent Session Handoff and Inline Preview"></td>
   </tr>
 </table>
+
+<p align="center">
+  <strong>Organize &amp; Safe Trash Disk Hygiene</strong> — Progressive scan for rebuildable dependencies, duplicate clones, and agent sandboxes<br><br>
+  <img src="docs/screenshots/organize-hygiene.png" alt="Mappo Organize and Disk Hygiene" width="76%">
+</p>
 
 ---
 

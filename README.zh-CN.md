@@ -42,14 +42,19 @@
 
 <table>
   <tr>
-    <td><strong>整理与空间瘦身</strong> — 流式体检可重建依赖、同仓库多副本与临时沙箱</td>
-    <td><strong>深色模式</strong> — 按活跃时间分层，直观标记多副本与大体积依赖</td>
+    <td><strong>右侧宽版抽屉与折叠启动栏</strong> — 折叠头像式多工具启动器、独立的终端/访达/仓库入口，以及最近跨工具会话快捷交接</td>
+    <td><strong>跨 Agent 会话交接与预览</strong> — 按需读取 Codex / Antigravity / Cursor / CodeBuddy 会话，一键复制上下文或短指令，并支持抽屉内预览</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/organize-hygiene.png" alt="Mappo 整理与空间瘦身"></td>
-    <td><img src="docs/screenshots/projects-dark.png" alt="Mappo 深色模式"></td>
+    <td><img src="docs/screenshots/project-drawer.png" alt="Mappo 右侧宽版抽屉与折叠启动栏"></td>
+    <td><img src="docs/screenshots/session-handoff.png" alt="Mappo 跨 Agent 会话交接与预览"></td>
   </tr>
 </table>
+
+<p align="center">
+  <strong>整理与空间瘦身</strong> — 流式体检可重建依赖、同仓库多副本与临时沙箱，全部可还原移入废纸篓<br><br>
+  <img src="docs/screenshots/organize-hygiene.png" alt="Mappo 整理与空间瘦身" width="76%">
+</p>
 
 ---
 
