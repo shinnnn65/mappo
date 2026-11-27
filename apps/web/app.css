@@ -4404,6 +4404,16 @@ button {
   flex-shrink: 0;
 }
 
+.organize-batch-bar .btn-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--toast-fg);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.organize-batch-bar .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* ==========================================================================
    Safe Trash Confirmation Modal
    ========================================================================== */

@@ -11,9 +11,10 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 from mappo import APP_VERSION  # noqa: E402
-from mappo.core.classify import detect_git_info  # noqa: E402
+from mappo.core.classify import annotate_project, detect_git_info  # noqa: E402
 from mappo.core.engine import scan  # noqa: E402
 from mappo.core.models import path_state  # noqa: E402
+from mappo.host.hygiene import scan_hygiene  # noqa: E402
 from mappo.host.launcher import (  # noqa: E402
     VALID_TARGETS,
     build_launch_command,
@@ -82,6 +83,7 @@ def main():
             "workspaces",
             "inspect",
             "open",
+            "hygiene",
             "doctor",
             "link",
             "unlink",
@@ -257,10 +259,92 @@ def main():
         )
         if args.command == "scan" and not args.no_index:
             result = index.save(scope, result)
-        elif not args.indexed and args.command in ("projects", "inspect", "open"):
+        elif not args.indexed and args.command in (
+            "projects",
+            "inspect",
+            "open",
+            "hygiene",
+        ):
             result = index.hydrate_live(result)
     except (OSError, sqlite3.Error, ValueError) as error:
         parser.exit(1, f"本地索引 {index.path} 处理失败。{error}\n")
+
+    if args.command == "hygiene":
+        home_dir = str(Path.home())
+        visible = []
+        for proj in result.get("projects", []):
+            row = dict(proj)
+            annotate_project(row, home=home_dir)
+            if row.get("asset_kind") == "noise":
+                continue
+            visible.append(row)
+        report = scan_hygiene(visible, home_dir=home_dir)
+        by_id = {p["id"]: p for p in visible}
+        reclaimable = []
+        for pid, info in report.get("by_project", {}).items():
+            size = info.get("reclaimable_bytes", 0)
+            if size <= 0 or pid not in by_id:
+                continue
+            proj = by_id[pid]
+            reclaimable.append(
+                {
+                    "project_id": pid,
+                    "path": proj["path"],
+                    "asset_kind": proj.get("asset_kind"),
+                    "last_activity": proj.get("last_activity"),
+                    "agents": proj.get("agents", []),
+                    "reclaimable_bytes": size,
+                    "artifacts": info.get("artifacts", []),
+                }
+            )
+        reclaimable.sort(key=lambda item: (-item["reclaimable_bytes"], item["path"]))
+        if args.json:
+            payload = {
+                "scanned_at": report.get("scanned_at"),
+                "duration_ms": report.get("duration_ms"),
+                "summary": report.get("summary", {}),
+                "reclaimable": reclaimable,
+                "duplicate_groups": report.get("duplicate_groups", []),
+            }
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+
+        def _fmt_bytes(num):
+            if num < 1024:
+                return f"{num} B"
+            if num < 1024**2:
+                return f"{num / 1024:.1f} KB"
+            if num < 1024**3:
+                return f"{num / 1024**2:.1f} MB"
+            return f"{num / 1024**3:.2f} GB"
+
+        summary = report.get("summary", {})
+        print(
+            f"可瘦身空间 {_fmt_bytes(summary.get('total_reclaimable_bytes', 0))}"
+            f"（{summary.get('reclaimable_project_count', 0)} 个目录）  "
+            f"同仓库多副本 {summary.get('duplicate_group_count', 0)} 组  "
+            f"临时沙箱 {summary.get('sandbox_count', 0)} 个"
+        )
+        if reclaimable:
+            print("SIZE\tLAST ACTIVITY (UTC)\tARTIFACTS\tPATH")
+            for item in reclaimable[:20]:
+                arts = ",".join(a["rel_path"] for a in item["artifacts"][:4])
+                print(
+                    _fmt_bytes(item["reclaimable_bytes"]),
+                    item["last_activity"] or "—",
+                    arts,
+                    item["path"],
+                    sep="\t",
+                )
+        dup_groups = report.get("duplicate_groups", [])
+        if dup_groups:
+            print("\nDUPLICATE REPOS\tCOPIES\tPATHS")
+            for grp in dup_groups:
+                paths_str = " | ".join(
+                    by_id[pid]["path"] for pid in grp.get("project_ids", []) if pid in by_id
+                )
+                print(grp["name"], grp["count"], paths_str, sep="\t")
+        return
 
     if args.command == "open":
         query = args.targets[0]

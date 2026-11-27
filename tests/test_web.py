@@ -992,6 +992,35 @@ class WebAndMetadataTest(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(json.loads(bad_raw)["code"], "unsupported_artifact")
 
+        # CLI `mappo hygiene --indexed --json` read-only report
+        env = dict(os.environ, HOME=str(self.home))
+        mappo_bin = str(Path(__file__).resolve().parents[1] / "mappo")
+        idx_path = self.home / "state" / "cli-hygiene.sqlite"
+        subprocess.check_output(
+            [mappo_bin, "scan", "--agent", "claude", "--index-file", str(idx_path)],
+            env=env,
+        )
+        hygiene_cli = json.loads(
+            subprocess.check_output(
+                [
+                    mappo_bin,
+                    "hygiene",
+                    "--indexed",
+                    "--json",
+                    "--agent",
+                    "claude",
+                    "--index-file",
+                    str(idx_path),
+                ],
+                env=env,
+                text=True,
+            )
+        )
+        self.assertEqual(hygiene_cli["summary"]["duplicate_group_count"], 1)
+        self.assertGreaterEqual(hygiene_cli["summary"]["total_reclaimable_bytes"], 1024)
+        self.assertEqual(len(hygiene_cli["reclaimable"]), 1)
+        self.assertEqual(hygiene_cli["reclaimable"][0]["path"], str(clone1))
+
 
 if __name__ == "__main__":
     unittest.main()
