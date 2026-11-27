@@ -1,4 +1,4 @@
-"""Build the standalone mappo 0.3.0 zip application."""
+"""Build the standalone mappo 0.4.0 zip application."""
 
 import argparse
 import shutil

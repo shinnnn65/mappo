@@ -5,7 +5,7 @@
 <h1 align="center">Mappo</h1>
 
 <p align="center">
-  <strong>Local workspace map, quick launcher, and safe disk hygiene hub for macOS Coding Agents &amp; IDEs.</strong>
+  <strong>Local workspace map, cross-agent session handoff, quick launcher, and safe disk hygiene hub for macOS Coding Agents &amp; IDEs.</strong>
 </p>
 
 <p align="center">
@@ -32,8 +32,9 @@
 Modern AI-assisted development scatters projects across **5–8 Coding Agents and editors**, multiple local clones, Git worktrees, and temporary sandboxes:
 
 - **One local map across all tools**: Aggregates Codex, Cursor, Claude Code, Antigravity (Desktop / IDE / CLI), CodeBuddy CN, WorkBuddy, DeepSeek Harness, VS Code, Trae, and editor extensions — ordering every project's tools by real `last_activity`.
+- **Read-only cross-agent session handoff**: List recent sessions across **Codex, Antigravity, Cursor, and CodeBuddy**, paste any reference (`codex://threads/...`, `codex resume ...`, `conversation://...`, `<agent>:<id>`), and export a denoised Markdown/JSON context (summary, recent turns, changed files, live Git state) — without ever writing to foreign databases.
 - **Safe hygiene, never `rm -rf`**: Finds gigabytes of rebuildable dependencies (`node_modules`, `.venv`, `target`, `.next`, contextual `dist`/`build`), groups duplicate clones of the same Git remote, runs an on-demand Git safety check before deleting whole directories, and moves everything to **macOS Trash** (reversible via Finder).
-- **Zero-dependency CLI + Agent Skill**: Runs on stock Python 3.9+ standard library, ships as a single-file `mappo.pyz`, and includes a ready-to-use [`skills/mappo/SKILL.md`](skills/mappo/SKILL.md) so any AI agent can query your local workspace map via `--json`.
+- **Zero-dependency CLI + Agent Skills**: Runs on stock Python 3.9+ standard library, ships as a single-file `mappo.pyz`, and includes [`skills/mappo/SKILL.md`](skills/mappo/SKILL.md) (plus companion [`skills/project-value-audit/SKILL.md`](skills/project-value-audit/SKILL.md)) so any AI agent can query your workspaces and pick up sessions from other agents.
 
 ---
 
@@ -113,6 +114,9 @@ Once `mappo` is installed and the skill is added to your agent's skills director
 - *"Where is `edge-gateway` cloned on this Mac and which branch is each copy on?"* → `mappo projects --indexed --name edge-gateway --json`
 - *"How much disk space can I safely reclaim from dormant `node_modules` or agent sandboxes?"* → `mappo hygiene --indexed --json`
 - *"Open `mappo` in the tool I used most recently."* → `mappo open mappo --indexed`
+- *"Continue from `codex://threads/01a2170d-...` or `cd '...' && codex resume ...`"* → `mappo handoff "<ref>" --turns 6`
+
+The repository also includes an optional companion skill [`skills/project-value-audit/SKILL.md`](skills/project-value-audit/SKILL.md) for evidence-based portfolio audits on top of `mappo projects` and `mappo hygiene`.
 
 The skill is strictly **read-only by default** — it never downloads binaries silently and never runs `rm -rf`.
 
@@ -140,6 +144,13 @@ mappo open <name-or-id> --indexed --with terminal
 mappo open <name-or-id> --indexed --with remote
 mappo open <name-or-id> --indexed --dry-run --json
 
+# Cross-agent sessions & read-only context handoff (Codex, Antigravity, Cursor, CodeBuddy)
+mappo sessions --limit 15
+mappo sessions --project my-app --json
+mappo handoff "codex://threads/01a2170d-4a3f-7893-80a8-73f1ab793f8a" --turns 6
+mappo handoff "cd '/path/to/repo' && codex resume 01a2170d-..." --json
+mappo handoff cursor:a67d881f | pbcopy
+
 # Read-only disk hygiene & duplicate clone audit
 mappo hygiene --indexed
 mappo hygiene --indexed --json
@@ -162,7 +173,8 @@ mappo web --port 4318 --no-open
 
 ## Local Web UI (`mappo web`)
 
-- **Projects**: Time-grouped view (`Today`, `Last 7 days`, `Last 30 days`, `Dormant 30d+`), clickable `N copies` duplicate pills, reclaimable size hints, tags, favorites, remote workspace grouping, and a persistent detail drawer with per-project recent-first tool launchers.
+- **Projects**: Time-grouped view (`Today`, `Last 7 days`, `Last 30 days`, `Dormant 30d+`), clickable `N copies` duplicate pills, reclaimable size hints, tags, favorites, remote workspace grouping, and a wide right-side overlay drawer (`Overview`, `Sessions & Handoff`, `Sources & Links`) with a folded editor/agent avatar launcher bar.
+- **Sessions & Handoff**: On-demand cross-agent session list inside each project drawer with one-click **Copy Context** (denoised Markdown ready for any chat window), **Copy Prompt** (1-line instruction for agents with the Mappo Skill), and inline context preview.
 - **Agents**: Active Coding Agents, editors, and host-attributed editor extensions, plus a collapsible list of detected tools without records.
 - **Organize (Hygiene)**: Progressive background scanner for rebuildable dependencies (`node_modules`, `.venv`, `target`, `.next`, contextual `dist`/`build`), Git remote duplicate grouping, and agent sandbox cleanup. Trashing a whole directory runs an on-demand Git safety check (uncommitted changes, untracked files, unpushed commits, stashes, missing remote, local `.env` files) with a one-click fallback to *"Clean dependencies only"*.
 - **Keyboard shortcuts**: `/` or `Cmd+K` search, `↑`/`↓` navigate, `Enter` details, `E` open in recent tool, `T` terminal, `O` Finder, `S` star, `R` rescan, `Esc` close.
@@ -172,8 +184,9 @@ mappo web --port 4318 --no-open
 ## Privacy, Security & Design Guarantees
 
 - **100% local, zero telemetry**: Never phones home; reads only known local metadata under your user account without `sudo` or Full Disk Access.
+- **No chat bodies stored in index**: `index.sqlite` stores only workspace paths and metadata; session transcripts are read strictly on demand when you run `mappo handoff` or preview/copy a session in the Web UI.
 - **Read-only WAL-safe SQLite access**: Never creates WAL sidecars in foreign application directories; retries safely on database contention.
-- **Localhost-only Web server**: Binds strictly to `127.0.0.1`; every mutating endpoint validates `Host`, `Origin`, and a per-session random `X-AWH-Token`.
+- **Localhost-only Web server**: Binds strictly to `127.0.0.1`; every mutating endpoint validates `Host`, `Origin`, and a per-session random `X-Mappo-Token`.
 - **Reversible Trash-only cleanup**: Strict path allowlisting rejects symlinks, non-artifact directories, and protected system/home paths; moves items via native macOS Trash (`/usr/bin/trash`) instead of `rm -rf`.
 
 ---

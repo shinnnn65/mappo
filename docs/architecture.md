@@ -15,6 +15,8 @@ mappo/
 │       ├── index.html
 │       ├── app.css
 │       ├── app.js
+│       ├── css/                # 拆分样式模块（如抽屉与会话面板 drawer.css）
+│       ├── js/                 # 拆分前端模块（detail-drawer.js、sessions-panel.js）
 │       └── icons/              # 品牌图标（mappo.svg）与各 Agent/编辑器图标
 ├── src/
 │   └── mappo/
@@ -23,6 +25,7 @@ mappo/
 │       ├── cli.py              # CLI 参数解析与命令分发
 │       ├── core/               # 领域模型、只读 IO/SQLite 工具与扫描聚合引擎
 │       ├── providers/          # 各 Agent、编辑器、扩展及文件系统只读适配器
+│       ├── sessions/           # 按需只读跨 Agent 会话解析与上下文交接（不入库正文）
 │       ├── storage/            # 每用户 SQLite 本地索引、手工关联与元数据
 │       ├── query/              # 列表检索、时间解析与组合过滤
 │       └── host/               # 本地 HTTP 服务、API 安全校验与前端资源加载
@@ -41,7 +44,7 @@ mappo/
 | 命令层 | `src/mappo/cli.py` | 解析子命令与过滤参数，调用核心、索引、查询与本地 HTTP 服务。 |
 | 本地托管层 | `src/mappo/host/` | 绑定 `127.0.0.1` 提供只读与变更 API、Host/Origin/Token 校验，以及源码/zipapp 双模式静态资源加载。 |
 | 存储与查询层 | `src/mappo/storage/`、`src/mappo/query/` | 维护 `~/.local/state/mappo/index.sqlite` 快照、历史项目、收藏/标签/隐藏状态，以及统一的列表过滤与排序逻辑。 |
-| 核心与适配器层 | `src/mappo/core/`、`src/mappo/providers/` | 负责路径规范化、诊断原因码分类、只读 JSON/SQLite 读取，以及按工具拆分的只读工作区发现适配器。 |
+| 核心与适配器层 | `src/mappo/core/`、`src/mappo/providers/`、`src/mappo/sessions/` | 负责路径规范化、诊断原因码分类、只读 JSON/SQLite 读取、按工具拆分的只读工作区发现适配器，以及按需读取的跨 Agent 会话与交接导出（会话正文不写入 `index.sqlite`）。 |
 
 依赖保持单向流动。`apps/cli` 与 `cli` 依赖 `host`、`storage`、`query` 和 `core`，`core/engine` 调度 `providers`，各 `providers` 仅依赖 `core` 与 `providers/registry`，`apps/web` 通过本机 HTTP API 与 `host` 通信。
 
